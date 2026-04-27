@@ -9,6 +9,7 @@ const { errorHandler } = require('./middlewares/errorHandler');
 const { sendError } = require('./utils/response');
 
 const app = express();
+app.set('trust proxy', 1); 
 const PORT = process.env.PORT || 3000;
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
