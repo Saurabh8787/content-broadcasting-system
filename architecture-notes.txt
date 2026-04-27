@@ -1,0 +1,240 @@
+====================================================
+  CONTENT BROADCASTING SYSTEM — ARCHITECTURE NOTES
+====================================================
+
+1. AUTHENTICATION & RBAC FLOW
+─────────────────────────────
+JWT (JSON Web Tokens) are used for stateless authentication.
+
+Login Flow:
+  POST /auth/login → validate email/password with bcrypt.compare()
+  → sign JWT { id, email, role, name } with HS256 + secret
+  → client stores token, sends as "Authorization: Bearer <token>"
+
+Middleware Chain (protected routes):
+  Request → authenticate() → verifyToken() → attach req.user → authorize(role) → controller
+
+Role Enforcement:
+  - `authenticate` middleware runs first on every protected route
+  - `authorize(...roles)` middleware checks req.user.role against allowed roles
+  - Strictly separated: teachers cannot access principal routes and vice versa
+  - No sensitive data (password_hash) is ever included in the JWT payload or responses
+
+RBAC Matrix:
+  Route                      | Principal | Teacher
+  POST /content/upload       |     ✗     |   ✓
+  GET  /content/my           |     ✗     |   ✓
+  GET  /content              |     ✓     |   ✗
+  GET  /content/:id          |     ✓     |   ✓ (own only)
+  PATCH /content/:id/approve |     ✓     |   ✗
+  PATCH /content/:id/reject  |     ✓     |   ✗
+  GET  /content/live/:id     |   public  | public
+
+
+2. SUBJECT-BASED SYSTEM DESIGN
+───────────────────────────────
+Each teacher has a unique "slot" per subject (content_slots table).
+The slot acts as a rotation context/anchor.
+
+  Teacher A + "maths"  → slot_id 1 (rotation anchor = slot created_at)
+  Teacher A + "science" → slot_id 2
+  Teacher B + "maths"  → slot_id 3  ← independent rotation
+
+When a teacher uploads content:
+  1. Upsert content_slots (teacher_id, subject) → get slot_id
+  2. Assign next rotation_order in content_schedule for that slot
+  3. Store duration per item in content_schedule
+
+This ensures each teacher's subjects rotate independently.
+
+
+3. UPLOAD HANDLING APPROACH
+────────────────────────────
+Library: multer (disk storage)
+
+Validation chain (in middleware):
+  1. MIME type check (image/jpeg, image/png, image/gif)
+  2. File extension check (.jpg, .jpeg, .png, .gif)
+  3. File size limit: 10MB (configurable via MAX_FILE_SIZE_MB env var)
+  4. Single file per request
+
+Storage:
+  - Local storage: /uploads/ directory (auto-created if missing)
+  - Filename: content-{timestamp}-{random}.ext (prevents collisions & path traversal)
+  - File served statically via Express: GET /uploads/<filename>
+
+Bonus (optional, not implemented): AWS S3 via @aws-sdk/client-s3 — swap
+  multer diskStorage for multer-s3 and update file_url to the S3 object URL.
+
+
+4. APPROVAL WORKFLOW DESIGN
+────────────────────────────
+Content Lifecycle:
+  [uploaded] → pending → approved | rejected
+
+  - Content is created with status = 'pending' (not 'uploaded', we skip
+    a redundant intermediate state as the assignment treats "uploaded" as
+    the entry point into "pending")
+  - Only principal can approve or reject
+  - Rejection requires a mandatory reason (stored in rejection_reason column)
+  - Approved content becomes eligible for the broadcasting pipeline
+  - Re-approval or re-rejection of already-processed content is blocked with a
+    descriptive 400 error
+
+DB Guard: The UPDATE WHERE status='pending' clause ensures
+  atomic state transitions without race conditions at the DB level.
+
+
+5. SCHEDULING / ROTATION LOGIC (VERY IMPORTANT)
+─────────────────────────────────────────────────
+This is the most critical business logic in the system.
+
+The goal: Given a teacher and the current time, return which content is
+"live" per subject, rotating items in a continuous loop.
+
+Algorithm:
+  ┌─────────────────────────────────────────────────────────┐
+  │  1. Fetch all approved content for this teacher where:   │
+  │     - status = 'approved'                                │
+  │     - start_time IS NOT NULL AND end_time IS NOT NULL    │
+  │     - NOW() BETWEEN start_time AND end_time              │
+  │                                                          │
+  │  2. Group results by subject                             │
+  │                                                          │
+  │  3. For each subject group:                              │
+  │     a. totalCycle = SUM(duration_in_seconds) for all    │
+  │        items in this subject slot                        │
+  │     b. epoch = slot.created_at (fixed anchor point)     │
+  │     c. elapsed = (NOW - epoch) in seconds               │
+  │     d. position = elapsed % totalCycle                   │
+  │     e. Walk items in rotation_order:                     │
+  │        cursor = 0                                        │
+  │        for each item:                                    │
+  │          if position in [cursor, cursor+duration):       │
+  │            → this item is ACTIVE                         │
+  │          cursor += duration                              │
+  │                                                          │
+  │  4. Return one active item per subject                   │
+  └─────────────────────────────────────────────────────────┘
+
+Example (Maths, 3 items):
+  Item A: 5 min → [0s, 300s)
+  Item B: 5 min → [300s, 600s)
+  Item C: 5 min → [600s, 900s)
+  Total cycle = 900s
+  At elapsed = 1050s: position = 1050 % 900 = 150s → Item A is active
+
+Edge Cases:
+  - No content at all → available: false, "No content available"
+  - Approved but no start/end time → excluded from query (not shown)
+  - Outside time window → excluded from query (not shown)
+  - Invalid/nonexistent subject query → empty results → "No content available"
+  - Single item in slot → always active during its window
+
+
+6. DATABASE DESIGN DECISIONS
+──────────────────────────────
+Tables:
+  users            → stores both principals and teachers (role discriminator)
+  content          → all uploaded content with lifecycle fields
+  content_slots    → unique (teacher_id, subject) pairs; the rotation anchor
+  content_schedule → maps content to its slot, with rotation_order and duration
+
+Key Decisions:
+  - Single users table with role field (not separate tables) → simplicity + RBAC
+  - content_slots.created_at is the epoch for rotation → deterministic, no
+    coordination needed across multiple server instances
+  - UNIQUE(teacher_id, subject) on content_slots → upsert-safe
+  - rotation_order in content_schedule → allows manual reordering in future
+  - Indexes on (uploaded_by), (status), (subject), (start_time, end_time) →
+    optimize the most frequent queries (live content fetch, teacher content view)
+  - ON DELETE CASCADE on uploaded_by/content_id → referential integrity
+
+Foreign Keys:
+  content.uploaded_by → users.id (CASCADE)
+  content.approved_by → users.id (SET NULL — preserve history if user deleted)
+  content_slots.teacher_id → users.id (CASCADE)
+  content_schedule.content_id → content.id (CASCADE)
+  content_schedule.slot_id → content_slots.id (CASCADE)
+
+
+7. FOLDER STRUCTURE
+────────────────────
+src/
+  index.js              → Express app bootstrap, middleware setup, server start
+  config/
+    database.js         → pg Pool configuration and query helper
+  controllers/
+    authController.js   → Login, /me endpoint
+    contentController.js → Upload, view, approve, reject
+    broadcastController.js → Public live endpoint
+  routes/
+    authRoutes.js       → /auth/*
+    contentRoutes.js    → /content/* (includes /content/live/:id)
+  services/
+    authService.js      → Login business logic, bcrypt comparison
+    contentService.js   → CRUD, approval workflow
+    schedulingService.js → Core rotation/scheduling logic
+  middlewares/
+    auth.js             → authenticate() + authorize() factory
+    upload.js           → multer config, file validation, error handling
+    errorHandler.js     → Global Express error handler
+  utils/
+    jwt.js              → generateToken, verifyToken wrappers
+    response.js         → sendSuccess, sendError, sendCreated helpers
+    migrate.js          → Creates all tables (run once)
+    seed.js             → Creates test users with hashed passwords
+uploads/               → Static file storage (local)
+
+
+8. MIDDLEWARE USAGE
+────────────────────
+Request pipeline for protected routes:
+  cors() → json() → urlencoded() → logger → route handler
+  → authenticate → authorize(role) → [handleUpload?] → controller → errorHandler
+
+  - cors(): Allow all origins (restrict in production)
+  - express.json(): Parse JSON body (limit 1MB to prevent DoS)
+  - authenticate: Verify JWT, attach req.user
+  - authorize: RBAC check (fails fast with 403)
+  - handleUpload: multer middleware (only on upload route)
+  - errorHandler: Catches all unhandled errors, formats response
+
+Public routes bypass authenticate and authorize entirely.
+
+
+9. SCALABILITY APPROACH
+────────────────────────
+Current (MVP):
+  - Stateless JWT → horizontal scaling of API servers (no session store needed)
+  - pg Pool (max 20) → connection reuse, handles concurrent requests
+  - Indexes on hot columns → fast queries even at scale
+
+Caching (Bonus / Future):
+  - Redis: Cache GET /content/live/:teacherId per subject for 30–60 seconds
+  - Cache key: live:{teacherId}:{subject}
+  - Invalidate on: new approval, content deactivation
+  - This eliminates DB hits for the most frequent public endpoint
+
+Rate Limiting:
+  - express-rate-limit on /content/live/* → 60 req/min per IP
+  - Prevents abuse of the public unauthenticated endpoint
+  - In production: use Redis store for rate limits (not in-memory)
+
+Queue (Future):
+  - Bull/BullMQ for async file processing (e.g., thumbnail generation, S3 upload)
+  - Decouple upload from response → faster API response, retryable jobs
+
+S3 (Bonus):
+  - Replace multer diskStorage with multer-s3
+  - Store file_url as full S3 URL
+  - Add CloudFront CDN in front for global low-latency file delivery
+
+Analytics (Bonus):
+  - Track view counts per content in a separate content_views table
+  - Aggregate per subject for "most active subject" reports
+  - Pagination already supported on all list endpoints
+
+====================================================
+END OF ARCHITECTURE NOTES
+====================================================
