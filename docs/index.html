@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Content Broadcasting System — API Docs</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.6; }
+  .sidebar { position: fixed; top: 0; left: 0; width: 240px; height: 100vh; background: #1a1d2e; border-right: 1px solid #2d3148; overflow-y: auto; padding: 20px 0; z-index: 100; }
+  .sidebar h2 { font-size: 13px; font-weight: 700; color: #7c82a8; text-transform: uppercase; letter-spacing: 1px; padding: 0 20px 10px; }
+  .sidebar a { display: block; padding: 8px 20px; font-size: 13px; color: #94a3b8; text-decoration: none; border-left: 2px solid transparent; transition: all 0.15s; }
+  .sidebar a:hover, .sidebar a.active { color: #fff; background: #252840; border-left-color: #6366f1; }
+  .sidebar .tag-label { padding: 16px 20px 4px; font-size: 11px; font-weight: 600; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; }
+  .main { margin-left: 240px; padding: 40px 48px; max-width: 900px; }
+  .hero { margin-bottom: 48px; }
+  .hero h1 { font-size: 32px; font-weight: 700; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .hero p { color: #94a3b8; font-size: 15px; margin-bottom: 20px; }
+  .base-url { display: inline-flex; align-items: center; gap: 10px; background: #1a1d2e; border: 1px solid #2d3148; border-radius: 8px; padding: 10px 16px; font-family: monospace; font-size: 13px; color: #a5b4fc; }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 48px; }
+  .info-card { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 20px; }
+  .info-card h3 { font-size: 12px; font-weight: 600; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .info-card p { font-size: 13px; color: #94a3b8; }
+  .info-card code { font-family: monospace; font-size: 12px; background: #252840; padding: 2px 6px; border-radius: 4px; color: #a5b4fc; }
+  .section { margin-bottom: 56px; }
+  .section-title { font-size: 11px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #2d3148; }
+  .endpoint { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .endpoint-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer; user-select: none; }
+  .endpoint-header:hover { background: #20233a; }
+  .method { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 5px; min-width: 58px; text-align: center; font-family: monospace; }
+  .GET    { background: #064e3b; color: #34d399; }
+  .POST   { background: #1e3a5f; color: #60a5fa; }
+  .PATCH  { background: #3b1f5e; color: #c084fc; }
+  .DELETE { background: #450a0a; color: #f87171; }
+  .path { font-family: monospace; font-size: 13px; color: #e2e8f0; flex: 1; }
+  .summary { font-size: 12px; color: #64748b; margin-left: auto; }
+  .auth-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #292350; color: #a78bfa; border: 1px solid #4c1d95; }
+  .public-badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; background: #052e16; color: #4ade80; border: 1px solid #14532d; }
+  .endpoint-body { display: none; padding: 0 18px 18px; border-top: 1px solid #2d3148; }
+  .endpoint-body.open { display: block; }
+  .desc { font-size: 13px; color: #94a3b8; margin: 14px 0 10px; }
+  .sub-title { font-size: 11px; font-weight: 600; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px; margin: 14px 0 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 8px 10px; background: #252840; color: #94a3b8; font-weight: 600; border-bottom: 1px solid #2d3148; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1f2235; color: #cbd5e1; vertical-align: top; }
+  td code { font-family: monospace; font-size: 11px; background: #252840; padding: 1px 5px; border-radius: 3px; color: #a5b4fc; }
+  .required { color: #f87171; font-size: 10px; margin-left: 3px; }
+  pre { background: #0d0f1a; border: 1px solid #2d3148; border-radius: 8px; padding: 14px; font-size: 12px; font-family: monospace; color: #a5b4fc; overflow-x: auto; margin: 8px 0; line-height: 1.7; }
+  .responses { margin-top: 14px; }
+  .response-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #1f2235; font-size: 12px; }
+  .status { font-family: monospace; font-weight: 700; min-width: 36px; }
+  .s200 { color: #34d399; } .s201 { color: #34d399; } .s400 { color: #fbbf24; } .s401 { color: #f87171; } .s403 { color: #f87171; } .s404 { color: #f87171; } .s409 { color: #fb923c; } .s500 { color: #f87171; }
+  .creds-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 16px 0; }
+  .creds-table th { background: #252840; padding: 10px 14px; text-align: left; color: #94a3b8; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .creds-table td { padding: 10px 14px; border-bottom: 1px solid #2d3148; color: #cbd5e1; }
+  .creds-table code { font-family: monospace; color: #a5b4fc; }
+  .note { background: #1e3a5f22; border: 1px solid #1e40af44; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #93c5fd; margin: 16px 0; }
+  .note strong { color: #60a5fa; }
+  @media(max-width:768px){ .sidebar{display:none} .main{margin-left:0;padding:24px 20px} .info-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <h2>📡 CBS API</h2>
+  <a href="#overview" class="active">Overview</a>
+  <a href="#auth-info">Authentication</a>
+  <div class="tag-label">Auth</div>
+  <a href="#register">Register</a>
+  <a href="#login">Login</a>
+  <a href="#me">Get Current User</a>
+  <div class="tag-label">Teacher</div>
+  <a href="#upload">Upload Content</a>
+  <a href="#my-content">My Content</a>
+  <div class="tag-label">Principal</div>
+  <a href="#all-content">All Content</a>
+  <a href="#single-content">Single Content</a>
+  <a href="#approve">Approve</a>
+  <a href="#reject">Reject</a>
+  <div class="tag-label">Public</div>
+  <a href="#live">Live Feed</a>
+  <div class="tag-label">Edge Cases</div>
+  <a href="#edge">Edge Cases</a>
+</nav>
+
+<main class="main">
+
+  <!-- HERO -->
+  <div class="hero" id="overview">
+    <h1>Content Broadcasting System</h1>
+    <p>Backend API for educational content broadcasting — teachers upload, principals approve, students view live.</p>
+    <div class="base-url">
+      <span class="live-dot"></span>
+      https://content-broadcasting-system-1-xdm1.onrender.com
+    </div>
+  </div>
+
+  <!-- INFO CARDS -->
+  <div class="info-grid">
+    <div class="info-card">
+      <h3>Stack</h3>
+      <p>Node.js · Express · PostgreSQL · JWT · bcrypt · Supabase Storage</p>
+    </div>
+    <div class="info-card">
+      <h3>Auth</h3>
+      <p>JWT Bearer token. Include <code>Authorization: Bearer &lt;token&gt;</code> on all protected routes.</p>
+    </div>
+    <div class="info-card">
+      <h3>Roles</h3>
+      <p><code>principal</code> — approves/rejects content<br><code>teacher</code> — uploads content</p>
+    </div>
+    <div class="info-card">
+      <h3>File Upload</h3>
+      <p>Accepted: <code>JPG</code> <code>PNG</code> <code>GIF</code><br>Max size: <code>10MB</code></p>
+    </div>
+  </div>
+
+  <!-- AUTH INFO -->
+  <div class="section" id="auth-info">
+    <div class="section-title">Authentication</div>
+    <div class="note">
+      <strong>How to authenticate:</strong><br>
+      1. Call <code>POST /auth/login</code> with your credentials<br>
+      2. Copy the <code>token</code> from the response<br>
+      3. Add header <code>Authorization: Bearer &lt;your_token&gt;</code> to all protected requests
+    </div>
+    <div class="section-title" style="margin-top:24px">Test Credentials</div>
+    <table class="creds-table">
+      <tr><th>Role</th><th>Email</th><th>Password</th></tr>
+      <tr><td>Principal</td><td><code>principal@school.com</code></td><td><code>principal123</code></td></tr>
+      <tr><td>Teacher 1</td><td><code>teacher1@school.com</code></td><td><code>teacher123</code></td></tr>
+      <tr><td>Teacher 2</td><td><code>teacher2@school.com</code></td><td><code>teacher123</code></td></tr>
+      <tr><td>Teacher 3</td><td><code>teacher3@school.com</code></td><td><code>teacher123</code></td></tr>
+    </table>
+  </div>
+
+  <!-- AUTH SECTION -->
+  <div class="section">
+    <div class="section-title">Auth</div>
+
+    <!-- REGISTER -->
+    <div class="endpoint" id="register">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="path">/auth/register</span>
+        <span class="summary">Register a new account</span>
+        <span class="public-badge">Public</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Create a new teacher or principal account.</p>
+        <div class="sub-title">Request Body (JSON)</div>
+        <table>
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>name</code></td><td>string</td><td>✅</td><td>Full name</td></tr>
+          <tr><td><code>email</code></td><td>string</td><td>✅</td><td>Email address</td></tr>
+          <tr><td><code>password</code></td><td>string</td><td>✅</td><td>Min 4 characters</td></tr>
+          <tr><td><code>role</code></td><td>string</td><td>✅</td><td><code>teacher</code> or <code>principal</code></td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  "name": "Teacher One",
+  "email": "teacher1@school.com",
+  "password": "teacher123",
+  "role": "teacher"
+}</pre>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  "success": true,
+  "message": "Account created successfully.",
+  "data": {
+    "id": 1,
+    "name": "Teacher One",
+    "email": "teacher1@school.com",
+    "role": "teacher",
+    "created_at": "2026-04-27T09:00:00.000Z"
+  }
+}</pre>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s201">201</span><span>Account created successfully</span></div>
+          <div class="response-row"><span class="status s400">400</span><span>Missing fields or invalid role</span></div>
+          <div class="response-row"><span class="status s409">409</span><span>Email already registered</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGIN -->
+    <div class="endpoint" id="login">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="path">/auth/login</span>
+        <span class="summary">Login and get JWT token</span>
+        <span class="public-badge">Public</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Login with email and password. Returns a JWT token valid for 7 days.</p>
+        <div class="sub-title">Request Body (JSON)</div>
+        <table>
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>email</code></td><td>string</td><td>✅</td><td>Registered email</td></tr>
+          <tr><td><code>password</code></td><td>string</td><td>✅</td><td>Account password</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{
+  "email": "teacher1@school.com",
+  "password": "teacher123"
+}</pre>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  "success": true,
+  "message": "Login successful.",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": 1,
+      "name": "Teacher One",
+      "email": "teacher1@school.com",
+      "role": "teacher"
+    }
+  }
+}</pre>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>Login successful — copy the token</span></div>
+          <div class="response-row"><span class="status s401">401</span><span>Invalid credentials</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ME -->
+    <div class="endpoint" id="me">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="path">/auth/me</span>
+        <span class="summary">Get current user info</span>
+        <span class="auth-badge">🔒 JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Returns info about the currently authenticated user.</p>
+        <div class="sub-title">Headers</div>
+        <table>
+          <tr><th>Key</th><th>Value</th></tr>
+          <tr><td><code>Authorization</code></td><td><code>Bearer &lt;token&gt;</code></td></tr>
+        </table>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>Current user info</span></div>
+          <div class="response-row"><span class="status s401">401</span><span>No token or expired token</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TEACHER SECTION -->
+  <div class="section">
+    <div class="section-title">Content — Teacher</div>
+
+    <!-- UPLOAD -->
+    <div class="endpoint" id="upload">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method POST">POST</span>
+        <span class="path">/content/upload</span>
+        <span class="summary">Upload new content</span>
+        <span class="auth-badge">🔒 Teacher</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Upload an image file with scheduling details. Content starts as <strong>pending</strong> and must be approved by the principal before going live.</p>
+        <div class="note"><strong>Note:</strong> Content without <code>start_time</code> and <code>end_time</code> will never appear in the live feed even after approval.</div>
+        <div class="sub-title">Request Body (multipart/form-data)</div>
+        <table>
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>title</code></td><td>string</td><td>✅</td><td>Content title</td></tr>
+          <tr><td><code>file</code></td><td>file</td><td>✅</td><td>JPG, PNG or GIF — max 10MB</td></tr>
+          <tr><td><code>subject</code></td><td>string</td><td>✅</td><td>e.g. maths, science</td></tr>
+          <tr><td><code>description</code></td><td>string</td><td>❌</td><td>Optional description</td></tr>
+          <tr><td><code>start_time</code></td><td>string</td><td>❌</td><td>ISO 8601 e.g. 2026-04-27T00:00:00Z</td></tr>
+          <tr><td><code>end_time</code></td><td>string</td><td>❌</td><td>ISO 8601 e.g. 2026-04-28T23:59:00Z</td></tr>
+          <tr><td><code>rotation_duration</code></td><td>integer</td><td>❌</td><td>Minutes per rotation slot (default 5)</td></tr>
+        </table>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  "success": true,
+  "message": "Content uploaded successfully. Pending approval.",
+  "data": {
+    "id": 3,
+    "title": "Algebra Chapter 1",
+    "subject": "maths",
+    "status": "pending",
+    "file_url": "https://xxx.supabase.co/storage/v1/object/public/content-uploads/content-123.png",
+    "start_time": "2026-04-27T00:00:00.000Z",
+    "end_time": "2026-04-28T23:59:00.000Z",
+    "rotation_duration": 5,
+    "created_at": "2026-04-27T09:00:00.000Z"
+  }
+}</pre>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s201">201</span><span>Content uploaded — pending approval</span></div>
+          <div class="response-row"><span class="status s400">400</span><span>Invalid file type, file too large, or missing required fields</span></div>
+          <div class="response-row"><span class="status s401">401</span><span>Unauthorized</span></div>
+          <div class="response-row"><span class="status s403">403</span><span>Teachers only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY CONTENT -->
+    <div class="endpoint" id="my-content">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="path">/content/my</span>
+        <span class="summary">View my uploaded content</span>
+        <span class="auth-badge">🔒 Teacher</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Returns all content uploaded by the logged-in teacher, with optional filters.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>status</code></td><td>string</td><td><code>pending</code> | <code>approved</code> | <code>rejected</code></td></tr>
+          <tr><td><code>subject</code></td><td>string</td><td>Filter by subject e.g. maths</td></tr>
+          <tr><td><code>page</code></td><td>integer</td><td>Page number (default 1)</td></tr>
+          <tr><td><code>limit</code></td><td>integer</td><td>Items per page (default 20)</td></tr>
+        </table>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>List of your content with pagination</span></div>
+          <div class="response-row"><span class="status s401">401</span><span>Unauthorized</span></div>
+          <div class="response-row"><span class="status s403">403</span><span>Teachers only</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINCIPAL SECTION -->
+  <div class="section">
+    <div class="section-title">Content — Principal</div>
+
+    <!-- ALL CONTENT -->
+    <div class="endpoint" id="all-content">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="path">/content</span>
+        <span class="summary">View all content</span>
+        <span class="auth-badge">🔒 Principal</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Returns all uploaded content across all teachers with pagination and filters.</p>
+        <div class="sub-title">Query Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>status</code></td><td>string</td><td><code>pending</code> | <code>approved</code> | <code>rejected</code></td></tr>
+          <tr><td><code>teacher_id</code></td><td>integer</td><td>Filter by specific teacher</td></tr>
+          <tr><td><code>subject</code></td><td>string</td><td>Filter by subject</td></tr>
+          <tr><td><code>page</code></td><td>integer</td><td>Page number (default 1)</td></tr>
+          <tr><td><code>limit</code></td><td>integer</td><td>Items per page (default 20)</td></tr>
+        </table>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>All content with pagination info</span></div>
+          <div class="response-row"><span class="status s401">401</span><span>Unauthorized</span></div>
+          <div class="response-row"><span class="status s403">403</span><span>Principal only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SINGLE CONTENT -->
+    <div class="endpoint" id="single-content">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="path">/content/:id</span>
+        <span class="summary">View single content</span>
+        <span class="auth-badge">🔒 JWT</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Returns a single content item by ID. Teachers can only view their own content.</p>
+        <div class="sub-title">Path Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>id</code></td><td>integer</td><td>Content ID</td></tr>
+        </table>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>Content details</span></div>
+          <div class="response-row"><span class="status s403">403</span><span>Teacher accessing another teacher's content</span></div>
+          <div class="response-row"><span class="status s404">404</span><span>Content not found</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- APPROVE -->
+    <div class="endpoint" id="approve">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method PATCH">PATCH</span>
+        <span class="path">/content/:id/approve</span>
+        <span class="summary">Approve content</span>
+        <span class="auth-badge">🔒 Principal</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Approves pending content. Once approved, content becomes eligible for live broadcasting within its scheduled time window.</p>
+        <div class="sub-title">Path Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>id</code></td><td>integer</td><td>Content ID to approve</td></tr>
+        </table>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  "success": true,
+  "message": "Content approved successfully.",
+  "data": {
+    "id": 3,
+    "title": "Algebra Chapter 1",
+    "status": "approved",
+    "approved_at": "2026-04-27T10:00:00.000Z"
+  }
+}</pre>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>Content approved</span></div>
+          <div class="response-row"><span class="status s400">400</span><span>Already approved or rejected</span></div>
+          <div class="response-row"><span class="status s403">403</span><span>Principal only</span></div>
+          <div class="response-row"><span class="status s404">404</span><span>Content not found</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REJECT -->
+    <div class="endpoint" id="reject">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method PATCH">PATCH</span>
+        <span class="path">/content/:id/reject</span>
+        <span class="summary">Reject content with reason</span>
+        <span class="auth-badge">🔒 Principal</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Rejects pending content. A rejection reason is mandatory.</p>
+        <div class="sub-title">Path Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>id</code></td><td>integer</td><td>Content ID to reject</td></tr>
+        </table>
+        <div class="sub-title">Request Body (JSON)</div>
+        <table>
+          <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+          <tr><td><code>reason</code></td><td>string</td><td>✅</td><td>Why the content is rejected</td></tr>
+        </table>
+        <div class="sub-title">Example Request</div>
+        <pre>{ "reason": "Image quality is too low." }</pre>
+        <div class="sub-title">Example Response</div>
+        <pre>{
+  "success": true,
+  "message": "Content rejected.",
+  "data": {
+    "id": 3,
+    "title": "Algebra Chapter 1",
+    "status": "rejected",
+    "rejection_reason": "Image quality is too low."
+  }
+}</pre>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>Content rejected</span></div>
+          <div class="response-row"><span class="status s400">400</span><span>Reason is required or content not in pending state</span></div>
+          <div class="response-row"><span class="status s403">403</span><span>Principal only</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BROADCASTING -->
+  <div class="section">
+    <div class="section-title">Broadcasting — Public</div>
+
+    <div class="endpoint" id="live">
+      <div class="endpoint-header" onclick="toggle(this)">
+        <span class="method GET">GET</span>
+        <span class="path">/content/live/:teacherId</span>
+        <span class="summary">🔴 Get live content</span>
+        <span class="public-badge">Public</span>
+      </div>
+      <div class="endpoint-body">
+        <p class="desc">Public student-facing endpoint. Returns the currently active content for a teacher based on the rotation schedule. No authentication required.</p>
+        <div class="note">
+          <strong>Scheduling Algorithm:</strong><br>
+          <code>position = (NOW - slot_epoch) % total_cycle_seconds</code><br>
+          Each teacher's subjects rotate independently in a continuous loop.
+        </div>
+        <div class="sub-title">Path Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>teacherId</code></td><td>integer</td><td>Teacher's user ID</td></tr>
+        </table>
+        <div class="sub-title">Query Parameters</div>
+        <table>
+          <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+          <tr><td><code>subject</code></td><td>string</td><td>Filter by subject (optional)</td></tr>
+        </table>
+        <div class="sub-title">Example — Content Available</div>
+        <pre>{
+  "success": true,
+  "data": {
+    "available": true,
+    "teacher": "Teacher One",
+    "items": [
+      {
+        "subject": "maths",
+        "id": 3,
+        "title": "Algebra Chapter 1",
+        "description": "Introduction to algebra",
+        "file_url": "https://xxx.supabase.co/storage/v1/object/public/content-uploads/content-123.png",
+        "file_type": "image/png",
+        "start_time": "2026-04-27T00:00:00.000Z",
+        "end_time": "2026-04-28T23:59:00.000Z",
+        "rotation_duration_minutes": 5
+      }
+    ],
+    "retrieved_at": "2026-04-27T10:00:00.000Z"
+  }
+}</pre>
+        <div class="sub-title">Example — No Content</div>
+        <pre>{
+  "success": true,
+  "data": {
+    "available": false,
+    "message": "No content available.",
+    "items": []
+  }
+}</pre>
+        <div class="responses">
+          <div class="sub-title">Responses</div>
+          <div class="response-row"><span class="status s200">200</span><span>Live content returned (or available=false if none)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDGE CASES -->
+  <div class="section" id="edge">
+    <div class="section-title">Edge Cases</div>
+    <table>
+      <tr><th>Scenario</th><th>Behavior</th></tr>
+      <tr><td>No approved content for teacher</td><td><code>available: false</code> — not an error</td></tr>
+      <tr><td>Approved but no start/end time set</td><td>Never shown in live feed</td></tr>
+      <tr><td>Content outside scheduled time window</td><td>Excluded from live feed</td></tr>
+      <tr><td>Invalid teacher ID in URL</td><td><code>available: false</code> — not a 404</td></tr>
+      <tr><td>Unknown subject in query</td><td><code>available: false</code> — not an error</td></tr>
+      <tr><td>Upload a .pdf or .doc file</td><td><code>400</code> Invalid file type</td></tr>
+      <tr><td>Upload file larger than 10MB</td><td><code>400</code> File too large</td></tr>
+      <tr><td>Approve already approved content</td><td><code>400</code> Already in approved state</td></tr>
+      <tr><td>Reject without providing reason</td><td><code>400</code> Rejection reason is required</td></tr>
+      <tr><td>Teacher accessing principal routes</td><td><code>403</code> Access denied</td></tr>
+      <tr><td>Principal accessing teacher routes</td><td><code>403</code> Access denied</td></tr>
+      <tr><td>Request with no token</td><td><code>401</code> No token provided</td></tr>
+      <tr><td>Request with expired token</td><td><code>401</code> Token has expired</td></tr>
+    </table>
+  </div>
+
+</main>
+
+<script>
+  function toggle(header) {
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+  }
+
+  // Highlight active sidebar link on scroll
+  const sections = document.querySelectorAll('[id]');
+  const links = document.querySelectorAll('.sidebar a');
+  window.addEventListener('scroll', () => {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 100) current = s.id;
+    });
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  });
+</script>
+</body>
+</html>
